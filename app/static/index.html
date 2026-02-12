@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Streaming Test Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f5f5f5;
+            min-height: 50px;
+        }
+        
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .viseme-display {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .viseme-current {
+            font-size: 3em;
+            text-align: center;
+            margin: 20px 0;
+            font-weight: bold;
+            color: #667eea;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .viseme-info {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ TTS Streaming Test</h1>
+        <p class="subtitle">Offline Text-to-Speech with Viseme Synchronization</p>
+        
+        <div class="form-group">
+            <label for="text">Text to Synthesize:</label>
+            <textarea id="text" placeholder="Enter text here...">Hello world! This is a test of the offline text to speech system with viseme synchronization.</textarea>
+        </div>
+        
+        <div class="grid">
+            <div class="form-group">
+                <label for="speaker">Speaker:</label>
+                <select id="speaker">
+                    <option value="0">Speaker 0 (Female)</option>
+                    <option value="1">Speaker 1 (Male)</option>
+                    <option value="2">Speaker 2</option>
+                    <option value="3">Speaker 3</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="speed">Speed:</label>
+                <select id="speed">
+                    <option value="0.75">0.75x (Slower)</option>
+                    <option value="1.0" selected>1.0x (Normal)</option>
+                    <option value="1.25">1.25x (Faster)</option>
+                    <option value="1.5">1.5x (Fast)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <button class="btn" onclick="startStreaming()">🎵 Generate Speech</button>
+            <button class="btn" onclick="stopAudio()" style="background: #e74c3c;">⏹️ Stop</button>
+        </div>
+        
+        <div id="status" class="status">Ready to generate speech...</div>
+        
+        <div class="viseme-display">
+            <h3>Current Viseme:</h3>
+            <div class="viseme-current" id="viseme-display">-</div>
+            <div class="viseme-info" id="viseme-info">Waiting for speech...</div>
+        </div>
+    </div>
+    
+    <script>
+        let ws = null;
+        let audioContext = null;
+        let audioQueue = [];
+        let isPlaying = false;
+        let startTime = 0;
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        function updateViseme(visemeData) {
+            const display = document.getElementById('viseme-display');
+            const info = document.getElementById('viseme-info');
+            
+            display.textContent = visemeData.viseme_name.toUpperCase();
+            info.textContent = `Phoneme: ${visemeData.phoneme} | ID: ${visemeData.viseme_id} | Time: ${visemeData.offset_ms}ms | Duration: ${visemeData.duration_ms}ms`;
+        }
+        
+        function clearViseme() {
+            document.getElementById('viseme-display').textContent = '-';
+            document.getElementById('viseme-info').textContent = 'Waiting for speech...';
+        }
+        
+        async function startStreaming() {
+            const text = document.getElementById('text').value;
+            const speaker = parseInt(document.getElementById('speaker').value);
+            const speed = parseFloat(document.getElementById('speed').value);
+            
+            if (!text.trim()) {
+                updateStatus('Please enter some text', 'error');
+                return;
+            }
+            
+            // Initialize audio context
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: 22050
+                });
+            }
+            
+            updateStatus('Connecting to server...', 'info');
+            clearViseme();
+            
+            // Connect WebSocket
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/ws/generate`;
+            
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+            
+            ws.onopen = () => {
+                updateStatus('Connected! Generating speech...', 'info');
+                
+                // Send request
+                ws.send(JSON.stringify({
+                    text: text,
+                    speaker_id: speaker,
+                    speed: speed
+                }));
+                
+                startTime = audioContext.currentTime;
+            };
+            
+            ws.onmessage = async (event) => {
+                if (typeof event.data === 'string') {
+                    // JSON message (viseme or control)
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'viseme_event') {
+                        updateViseme(data);
+                        
+                        // Schedule viseme to clear after duration
+                        setTimeout(() => {
+                            if (document.getElementById('viseme-display').textContent === data.viseme_name.toUpperCase()) {
+                                // Only clear if this is still the current viseme
+                            }
+                        }, data.duration_ms);
+                    } else if (data.type === 'complete') {
+                        updateStatus('Speech generation complete!', 'success');
+                        setTimeout(clearViseme, 1000);
+                    } else if (data.type === 'error') {
+                        updateStatus(`Error: ${data.message}`, 'error');
+                    }
+                } else {
+                    // Binary audio data
+                    playAudioChunk(event.data);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                updateStatus('WebSocket error occurred', 'error');
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = () => {
+                updateStatus('Connection closed', 'info');
+            };
+        }
+        
+        function playAudioChunk(arrayBuffer) {
+            // Convert Int16 PCM to Float32 for Web Audio API
+            const int16Array = new Int16Array(arrayBuffer);
+            const float32Array = new Float32Array(int16Array.length);
+            
+            for (let i = 0; i < int16Array.length; i++) {
+                float32Array[i] = int16Array[i] / 32768.0;
+            }
+            
+            // Create audio buffer
+            const audioBuffer = audioContext.createBuffer(1, float32Array.length, 22050);
+            audioBuffer.getChannelData(0).set(float32Array);
+            
+            // Create source and play
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start(audioContext.currentTime);
+        }
+        
+        function stopAudio() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            updateStatus('Stopped', 'info');
+            clearViseme();
+        }
+    </script>
+</body>
+</html>
