@@ -7,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import TTSRequest
+from app.core.lexicon import apply_custom_phonetics
 from app.core.tts_engine import PiperEngine
 from app.core.qwen3_engine import Qwen3Engine
 from app.config import settings
@@ -37,12 +38,14 @@ async def synthesize_audio(request: TTSRequest):
     print("Hello")
     engine = create_tts_engine()
     print("Done Create engine")
+
+    # Apply Tagalog phonetic fixes before synthesis
+    processed_text = apply_custom_phonetics(request.text)
     
     # Collect all audio chunks
     audio_chunks = []
-    print("Start synthesize_stream")
     async for msg_type, data in engine.synthesize_stream(
-        text=request.text,
+        text=processed_text, # Use the improved text
         speaker_id=request.speaker_id,
         length_scale=1.0 / request.speed
     ):
