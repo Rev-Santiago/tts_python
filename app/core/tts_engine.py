@@ -90,10 +90,15 @@ class PiperEngine:
         })
         
         # Write input and close stdin
-        process.stdin.write(input_data.encode('utf-8'))
-        process.stdin.write(b'\n')
-        await process.stdin.drain()
-        process.stdin.close()
+        if process.stdin is not None:
+            process.stdin.write(input_data.encode('utf-8'))
+            process.stdin.write(b'\n')
+            await process.stdin.drain()
+            process.stdin.close()
+        else:
+            logger.error("Piper process stdin is None - cannot send text for synthesis")
+            yield ("error", {"message": "Internal process error: stdin not available"})
+            return
         
         # Read outputs concurrently
         audio_task = asyncio.create_task(self._read_audio(process))
