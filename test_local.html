@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><title>TTS Local Test</title></head>
+<body>
+    <h2>TTS WebSocket Test</h2>
+    <textarea id="text" rows="3">Testing the connection from my local frontend.</textarea><br>
+    <button id="play">Generate & Play</button>
+    <p id="status">Status: Ready</p>
+
+    <script>
+    let audioCtx;
+    let nextStartTime = 0; // Track when the next chunk should start
+
+    document.getElementById('play').onclick = async () => {
+        if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 22050 });
+        
+        // Resume context if suspended (browser security policy)
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        
+        document.getElementById('status').innerText = "Status: Connecting...";
+        
+        // Reset timing for new request
+        nextStartTime = audioCtx.currentTime;
+
+        const ws = new WebSocket("ws://192.168.3.119:8000/api/ws/generate");
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ text: document.getElementById('text').value, speed: 1.0 }));
+            document.getElementById('status').innerText = "Status: Receiving Audio...";
+        };
+
+        ws.onmessage = async (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                const int16 = new Int16Array(event.data);
+                const float32 = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+                const buffer = audioCtx.createBuffer(1, float32.length, 22050);
+                buffer.getChannelData(0).set(float32);
+                
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioCtx.destination);
+                
+                // Ensure we don't schedule in the past
+                const playTime = Math.max(nextStartTime, audioCtx.currentTime);
+                source.start(playTime);
+                
+                // Update the start time for the next chunk
+                nextStartTime = playTime + buffer.duration;
+            } else {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'complete') document.getElementById('status').innerText = "Status: Done";
+            }
+        };
+    };
+    </script>
+</body>
+</html>

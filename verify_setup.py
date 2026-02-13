@@ -4,6 +4,7 @@ System verification script - checks if everything is properly installed
 import sys
 import subprocess
 from pathlib import Path
+from app.config import settings
 
 
 def check_python_version():
