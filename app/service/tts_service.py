@@ -14,14 +14,20 @@ def create_tts_engine():
         logger.info("Using Piper TTS engine")
         return PiperEngine()
 
+_cached_engine = None
+
+def get_engine():
+    global _cached_engine
+    if _cached_engine is None:
+        _cached_engine = create_tts_engine()
+    return _cached_engine
+
 async def generate_tts_audio(text: str, speaker_id: int = 0, speed: float = 1.0):
     """
     Core business logic for generating TTS audio chunks.
     This function is reusable across different endpoints.
     """
-    engine = create_tts_engine()
-    
-    # Piper length_scale is the inverse of speed
+    engine = get_engine() # Use the persistent engine
     length_scale = 1.0 / speed
     
     async for msg_type, data in engine.synthesize_stream(

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     SAMPLE_RATE: int = 22050
     CHUNK_SIZE: int = 2048  # Audio chunk size in bytes
     
+    #Ollama settings
+    OLLAMA_FLASH_ATTENTION: str = "0"
+
     # Piper settings
     PIPER_EXECUTABLE: str = "piper"  # Assumes piper is in PATH
     
@@ -38,6 +41,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

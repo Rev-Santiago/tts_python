@@ -57,12 +57,13 @@ class Qwen3Engine:
             # Prepare request
             request_data = {
                 "input": text,
+                "task_type": "CustomVoice",
                 "voice": voice,
                 "model": "qwen3-tts",
                 "response_format": response_format,
                 "speed": speed,
-                "stream": False,  # Use streaming for audio chunks
-                "language": language
+                "stream": True,  # Use streaming for audio chunks
+                "language": "English"
             }
             
             # Make request to Qwen3-TTS server
