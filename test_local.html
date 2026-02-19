@@ -22,7 +22,7 @@
         // Reset timing for new request
         nextStartTime = audioCtx.currentTime;
 
-        const ws = new WebSocket("ws://192.168.3.119:8000/api/ws/generate");
+        const ws = new WebSocket("ws://192.168.2.56:8010/api/ws/generate");
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
