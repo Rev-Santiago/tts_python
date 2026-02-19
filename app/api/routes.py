@@ -3,60 +3,79 @@ API routes for TTS synthesis
 """
 import logging
 import json
+import traceback
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
-
 from app.api.schemas import TTSRequest
-from app.core.tts_engine import PiperEngine
-from app.core.qwen3_engine import Qwen3Engine
 from app.config import settings
+from app.service.tts_service import generate_tts_audio, create_tts_engine
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+import httpx
 
-def create_tts_engine():
-    """Factory function to create TTS engine based on configuration"""
-    if settings.TTS_ENGINE == "qwen3":
-        logger.info(f"Using Qwen3-TTS engine: {settings.QWEN3_SERVER_URL}")
-        return Qwen3Engine(
-            server_url=settings.QWEN3_SERVER_URL
+@router.post("/v1/chat")
+async def chat_with_audio(request: TTSRequest):
+    """
+    1. Sends user text to Ollama (Gemma 3)
+    2. Takes LLM response and pipes it to the TTS Service for audio generation
+    """
+    # 1. Process request via Ollama
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            ollama_res = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "gemma3:4b", # Or gemma3:7b / 12b based on your specs
+                    "prompt": request.text, 
+                    "stream": False
+                }
+            )
+            llm_text = ollama_res.json().get("response", "")
+            
+        if not llm_text:
+            raise HTTPException(status_code=500, detail="LLM failed to generate a response")
+
+        # 2. Generate audio from the LLM text using your new service
+        audio_chunks = []
+        async for msg_type, data in generate_tts_audio(llm_text, request.speaker_id, request.speed):
+            if msg_type == "audio":
+                audio_chunks.append(data)
+            elif msg_type == "error":
+                 raise HTTPException(status_code=500, detail="TTS Service error")
+        
+        complete_audio = b''.join(audio_chunks)
+        wav_data = _create_wav(complete_audio, settings.SAMPLE_RATE)
+        
+        return StreamingResponse(
+            iter([wav_data]), 
+            media_type="audio/wav",
+            headers={"Content-Disposition": "attachment; filename=chat_response.wav"}
         )
-    else:
-        logger.info("Using Piper TTS engine")
-        return PiperEngine()
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/v1/synthesis")
 async def synthesize_audio(request: TTSRequest):
-    """
-    Simple synchronous TTS endpoint (for testing)
-    Returns a complete WAV file
-    """
-    print("Hello")
-    engine = create_tts_engine()
-    print("Done Create engine")
-    
-    # Collect all audio chunks
     audio_chunks = []
-    print("Start synthesize_stream")
-    async for msg_type, data in engine.synthesize_stream(
-        text=request.text,
-        speaker_id=request.speaker_id,
-        length_scale=1.0 / request.speed
+    
+    # Use the service function
+    async for msg_type, data in generate_tts_audio(
+        text=request.text, 
+        speaker_id=request.speaker_id, 
+        speed=request.speed
     ):
-        print(data)
-
         if msg_type == "audio":
             audio_chunks.append(data)
         elif msg_type == "error":
             raise HTTPException(status_code=500, detail=data.get("message", "TTS error"))
     
-    # Combine all audio
     complete_audio = b''.join(audio_chunks)
-    
-    # Create WAV header
     wav_data = _create_wav(complete_audio, settings.SAMPLE_RATE)
     
     return StreamingResponse(
@@ -105,11 +124,12 @@ async def websocket_tts_stream(websocket: WebSocket):
         engine = create_tts_engine()
         
         # Stream results
-        async for msg_type, data in engine.synthesize_stream(
-            text=text,
-            speaker_id=speaker_id,
-            length_scale=1.0 / speed
-        ):
+#        async for msg_type, data in engine.synthesize_stream(
+#            text=text,
+#            speaker_id=speaker_id,
+#            length_scale=1.0 / speed
+#        ):
+        async for msg_type, data in generate_tts_audio(text, speaker_id, speed):
             if msg_type == "audio":
                 # Send binary audio chunk
                 await websocket.send_bytes(data)

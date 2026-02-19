@@ -2,6 +2,7 @@
 Main FastAPI application
 """
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,11 +19,30 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-
-# Create FastAPI app
+# Define the Lifespan logic
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup Logic
+    logger.info("=" * 80)
+    logger.info("TTS Streaming Server Starting")
+    logger.info(f"Host: {settings.HOST}:{settings.PORT}")
+    logger.info(f"Models directory: {settings.MODELS_DIR}")
+    logger.info(f"Default voice: {settings.DEFAULT_VOICE}")
+    logger.info("=" * 80)
+    
+    if not settings.MODELS_DIR.exists():
+        logger.warning(f"Models directory does not exist: {settings.MODELS_DIR}")
+        logger.warning("Please download Piper models and place them in the models/ directory")
+    
+    yield  # This is where the application runs
+    
+    # Shutdown Logic
+    logger.info("TTS Streaming Server Shutting Down")
+    
+# Pass lifespan to FastAPI
 app = FastAPI(
     title="Offline TTS Streaming Server",
-    description="Text-to-Speech server with streaming audio and viseme synchronization for 3D animation",
+    lifespan=lifespan,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
