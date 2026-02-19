@@ -65,7 +65,7 @@ async def chat_with_audio(request: TTSRequest):
                                     if current_speech:
                                         print(f"DEBUG: Speaking (buffered): {current_speech[:30]}...")
                                         async for msg_type, audio_data in generate_tts_audio(
-                                            current_speech, request.speaker_id, request.speed
+                                            current_speech, request.voice, request.speed
                                         ):
                                             if msg_type == "audio":
                                                 yield audio_data
@@ -81,7 +81,7 @@ async def chat_with_audio(request: TTSRequest):
                         if remaining_speech:
                             print(f"DEBUG: Speaking (final): {remaining_speech[:30]}...")
                             async for msg_type, audio_data in generate_tts_audio(
-                                remaining_speech, request.speaker_id, request.speed
+                                remaining_speech, request.voice, request.speed
                             ):
                                 if msg_type == "audio":
                                     yield audio_data
@@ -100,7 +100,7 @@ async def synthesize_audio(request: TTSRequest):
     # Use the service function
     async for msg_type, data in generate_tts_audio(
         text=request.text, 
-        speaker_id=request.speaker_id, 
+        voice=request.voice, 
         speed=request.speed
     ):
         if msg_type == "audio":

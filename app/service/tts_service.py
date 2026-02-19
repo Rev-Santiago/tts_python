@@ -22,7 +22,7 @@ def get_engine():
         _cached_engine = create_tts_engine()
     return _cached_engine
 
-async def generate_tts_audio(text: str, speaker_id: int = 0, speed: float = 1.0):
+async def generate_tts_audio(text: str, voice: str ="vivian", speed: float = 1.0):
     """
     Core business logic for generating TTS audio chunks.
     This function is reusable across different endpoints.
@@ -32,7 +32,7 @@ async def generate_tts_audio(text: str, speaker_id: int = 0, speed: float = 1.0)
     
     async for msg_type, data in engine.synthesize_stream(
         text=text,
-        speaker_id=speaker_id,
-        length_scale=length_scale
+        length_scale=length_scale,
+        voice=voice
     ):
         yield msg_type, data
