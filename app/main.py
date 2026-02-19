@@ -42,7 +42,7 @@ app.include_router(router, prefix="/api", tags=["TTS"])
 
 # Serve static files (test client)
 try:
-    app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+    app.mount("/static", StaticFiles(directory="app/static", html=True), name="static")
 except Exception as e:
     logger.warning(f"Could not mount static files: {e}")
 
