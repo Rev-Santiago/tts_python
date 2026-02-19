@@ -63,7 +63,7 @@ class Qwen3Engine:
                 "response_format": response_format,
                 "speed": speed,
                 "stream": True,  # Use streaming for audio chunks
-                "language": "English"
+                "language": "en"
             }
             
             # Make request to Qwen3-TTS server

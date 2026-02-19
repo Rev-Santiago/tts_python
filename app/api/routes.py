@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/v1/chat")
-@router.post("/v1/chat")
 async def chat_with_audio(request: TTSRequest):
     """
     Optimized Chat Endpoint with Look-Ahead Buffering:
