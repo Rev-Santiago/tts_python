@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     
     # Server settings
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 8010
     
     # TTS Engine Selection
     TTS_ENGINE: str = "qwen3"  # "piper" or "qwen3"
