@@ -43,7 +43,7 @@ async def synthesize_audio(request: TTSRequest):
     print("Start synthesize_stream")
     async for msg_type, data in engine.synthesize_stream(
         text=request.text,
-        speaker_id=request.speaker_id,
+        voice=request.voice,
         length_scale=1.0 / request.speed
     ):
         print(data)
@@ -107,7 +107,7 @@ async def websocket_tts_stream(websocket: WebSocket):
         # Stream results
         async for msg_type, data in engine.synthesize_stream(
             text=text,
-            speaker_id=speaker_id,
+            voice=voice_id or "vivian",
             length_scale=1.0 / speed
         ):
             if msg_type == "audio":

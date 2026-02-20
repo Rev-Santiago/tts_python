@@ -38,7 +38,7 @@ class PiperEngine:
     async def synthesize_stream(
         self, 
         text: str, 
-        speaker_id: int = 0,
+        voice: str = "vivian",
         length_scale: float = 1.0
     ) -> AsyncGenerator[Tuple[str, Any], None]:
         """
@@ -84,7 +84,7 @@ class PiperEngine:
         # Prepare input JSON
         input_data = json.dumps({
             "text": text,
-            "speaker_id": speaker_id,
+            "voice": voice,
             "length_scale": length_scale,
             "output_file": "-",  # stdout
         })

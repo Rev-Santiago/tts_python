@@ -27,9 +27,8 @@ class Qwen3Engine:
     async def synthesize_stream(
         self,
         text: str,
-        speaker_id: int = 0,
+        voice: str = "vivian",
         length_scale: float = 1.0,
-        voice: str = "Vivian",
         response_format: str = "pcm",
         language: str = "Auto"
     ) -> AsyncGenerator[Tuple[str, Any], None]:
