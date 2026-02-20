@@ -1,9 +1,41 @@
 <!DOCTYPE html>
 <html>
-<head><title>TTS Local Test</title></head>
+<head>
+    <title>TTS Local Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        textarea, select, button { margin-bottom: 10px; width: 100%; max-width: 400px; padding: 8px; }
+    </style>
+</head>
 <body>
     <h2>TTS WebSocket Test</h2>
+    
+    <label for="text">Text to synthesize:</label><br>
     <textarea id="text" rows="3">Testing the connection from my local frontend.</textarea><br>
+    
+    <label for="voiceSelect">Choose Voice:</label><br>
+    <select id="voiceSelect">
+        <optgroup label="Native Qwen3 Voices">
+            <option value="vivian" selected>Vivian (Female)</option>
+            <option value="serena">Serena (Female)</option>
+            <option value="ono_anna">Ono Anna (Female)</option>
+            <option value="sohee">Sohee (Female)</option>
+            <option value="uncle_fu">Uncle Fu (Male)</option>
+            <option value="ryan">Ryan (Male)</option>
+            <option value="aiden">Aiden (Male)</option>
+            <option value="eric">Eric (Male)</option>
+            <option value="dylan">Dylan (Male)</option>
+        </optgroup>
+        <optgroup label="OpenAI-Compatible Aliases">
+            <option value="alloy">Alloy (maps to Vivian)</option>
+            <option value="echo">Echo (maps to Ryan)</option>
+            <option value="fable">Fable (maps to Sophia)</option>
+            <option value="nova">Nova (maps to Isabella)</option>
+            <option value="onyx">Onyx (maps to Evan)</option>
+            <option value="shimmer">Shimmer (maps to Lily)</option>
+        </optgroup>
+    </select><br>
+
     <button id="play">Generate & Play</button>
     <p id="status">Status: Ready</p>
 
@@ -26,7 +58,14 @@
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
-            ws.send(JSON.stringify({ text: document.getElementById('text').value, speed: 1.0 }));
+            // Include the selected voice in the JSON payload
+            const payload = {
+                text: document.getElementById('text').value,
+                voice: document.getElementById('voiceSelect').value,
+                speed: 1.0
+            };
+            ws.send(JSON.stringify(payload));
+            
             document.getElementById('status').innerText = "Status: Receiving Audio...";
         };
 
