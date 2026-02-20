@@ -2,6 +2,7 @@
 Main FastAPI application
 """
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,63 +20,65 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Create FastAPI app
+# ── Lifespan (replaces deprecated on_event) ───────────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("=" * 80)
+    logger.info("TTS Streaming Server Starting")
+    logger.info(f"Host: {settings.HOST}:{settings.PORT}")
+    logger.info(f"Models directory: {settings.MODELS_DIR}")
+    logger.info(f"Default voice: {settings.DEFAULT_VOICE}")
+    logger.info(f"TTS Engine: {settings.TTS_ENGINE}")
+    logger.info("=" * 80)
+
+    if not settings.MODELS_DIR.exists():
+        logger.warning(f"Models directory does not exist: {settings.MODELS_DIR}")
+
+    yield
+
+    # Shutdown
+    logger.info("TTS Streaming Server Shutting Down")
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Offline TTS Streaming Server",
-    description="Text-to-Speech server with streaming audio and viseme synchronization for 3D animation",
+    description="Text-to-Speech server with streaming audio and viseme synchronization",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-# Add CORS middleware for local network access
+# ── CORS — allow everything (local dev) ───────────────────────────────────────
+# NOTE: CORSMiddleware does NOT cover WebSocket upgrades in FastAPI.
+# WebSocket origin checking is handled inside the endpoint itself (see routes.py).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routes
+# ── Routes ────────────────────────────────────────────────────────────────────
 app.include_router(router, prefix="/api", tags=["TTS"])
 
-# Serve static files (test client)
+# ── Static files ──────────────────────────────────────────────────────────────
 try:
     app.mount("/static", StaticFiles(directory="app/static", html=True), name="static")
 except Exception as e:
     logger.warning(f"Could not mount static files: {e}")
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Run on application startup"""
-    logger.info("=" * 80)
-    logger.info("TTS Streaming Server Starting")
-    logger.info(f"Host: {settings.HOST}:{settings.PORT}")
-    logger.info(f"Models directory: {settings.MODELS_DIR}")
-    logger.info(f"Default voice: {settings.DEFAULT_VOICE}")
-    logger.info("=" * 80)
-    
-    # Check if models directory exists
-    if not settings.MODELS_DIR.exists():
-        logger.warning(f"Models directory does not exist: {settings.MODELS_DIR}")
-        logger.warning("Please download Piper models and place them in the models/ directory")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Run on application shutdown"""
-    logger.info("TTS Streaming Server Shutting Down")
-
-
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "service": "TTS Streaming Server",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "engine": settings.TTS_ENGINE,
     }
 
 
@@ -86,5 +89,5 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=True,
-        log_level="info"
+        log_level="info",
     )
