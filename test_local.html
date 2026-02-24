@@ -8,10 +8,10 @@
     </style>
 </head>
 <body>
-    <h2>TTS WebSocket Test</h2>
+    <h2>TTS REST API Test</h2>
     
     <label for="text">Text to synthesize:</label><br>
-    <textarea id="text" rows="3">Testing the connection from my local frontend.</textarea><br>
+    <textarea id="text" rows="3">Testing Qwen3 integration</textarea><br>
     
     <label for="voiceSelect">Choose Voice:</label><br>
     <select id="voiceSelect">
@@ -40,59 +40,55 @@
     <p id="status">Status: Ready</p>
 
     <script>
-    let audioCtx;
-    let nextStartTime = 0; // Track when the next chunk should start
-
     document.getElementById('play').onclick = async () => {
-        if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 22050 });
+        const statusText = document.getElementById('status');
+        const playBtn = document.getElementById('play');
         
-        // Resume context if suspended (browser security policy)
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
-        
-        document.getElementById('status').innerText = "Status: Connecting...";
-        
-        // Reset timing for new request
-        nextStartTime = audioCtx.currentTime;
+        statusText.innerText = "Status: Generating audio (please wait)...";
+        playBtn.disabled = true; // Prevent spam clicking
 
-        const ws = new WebSocket("ws://192.168.2.56:8010/api/ws/generate");
-        ws.binaryType = 'arraybuffer';
-
-        ws.onopen = () => {
-            // Include the selected voice in the JSON payload
-            const payload = {
-                text: document.getElementById('text').value,
-                voice: document.getElementById('voiceSelect').value,
-                speed: 1.0
-            };
-            ws.send(JSON.stringify(payload));
-            
-            document.getElementById('status').innerText = "Status: Receiving Audio...";
+        // Prepare the exact payload from your Postman test
+        const payload = {
+            text: document.getElementById('text').value,
+            voice: document.getElementById('voiceSelect').value,
+            speed: 1.0
         };
 
-        ws.onmessage = async (event) => {
-            if (event.data instanceof ArrayBuffer) {
-                const int16 = new Int16Array(event.data);
-                const float32 = new Float32Array(int16.length);
-                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+        try {
+            // Hit the REST endpoint instead of the WebSocket
+            const response = await fetch("http://127.0.0.1:8010/api/v1/synthesis", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
 
-                const buffer = audioCtx.createBuffer(1, float32.length, 22050);
-                buffer.getChannelData(0).set(float32);
-                
-                const source = audioCtx.createBufferSource();
-                source.buffer = buffer;
-                source.connect(audioCtx.destination);
-                
-                // Ensure we don't schedule in the past
-                const playTime = Math.max(nextStartTime, audioCtx.currentTime);
-                source.start(playTime);
-                
-                // Update the start time for the next chunk
-                nextStartTime = playTime + buffer.duration;
-            } else {
-                const msg = JSON.parse(event.data);
-                if (msg.type === 'complete') document.getElementById('status').innerText = "Status: Done";
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status}`);
             }
-        };
+
+            // Convert the response directly into an audio blob
+            const audioBlob = await response.blob();
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            // Play the audio
+            const audio = new Audio(audioUrl);
+            audio.play();
+            
+            statusText.innerText = "Status: Playing audio...";
+            
+            // Reset status when audio finishes
+            audio.onended = () => {
+                statusText.innerText = "Status: Done";
+                playBtn.disabled = false;
+            };
+
+        } catch (error) {
+            console.error(error);
+            statusText.innerText = "Status: Error - " + error.message;
+            playBtn.disabled = false;
+        }
     };
     </script>
 </body>
