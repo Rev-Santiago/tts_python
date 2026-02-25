@@ -33,65 +33,55 @@ class Qwen3Engine:
         language: str = "Auto"
     ) -> AsyncGenerator[Tuple[str, Any], None]:
         """
-        Generate speech using Qwen3-TTS server
+        Generate speech using Qwen3-TTS server with true HTTP streaming.
         
         Args:
             text: Text to synthesize
-            speaker_id: Not used (Qwen3 uses voice names instead)
             length_scale: Speech speed (inverse of speed parameter)
-            voice: Voice name (Vivian, etc.)
-            response_format: Audio format (pcm, mp3, wav, etc.)
+            voice: Voice name (Vivian, Eric, etc.)
+            response_format: Audio format — use "pcm" for raw 16-bit PCM
             language: Language code or "Auto"
             
         Yields:
-            ("audio", bytes) - Audio data chunks
+            ("audio", bytes) - Raw PCM audio data chunks
             ("complete", {}) - Completion signal
             ("error", {"message": str}) - Error message
         """
         try:
-            # Convert length_scale (Piper format) to speed (OpenAI format)
+            # Convert length_scale (Piper convention) to speed (OpenAI convention)
+            # length_scale=1.0 → speed=1.0, length_scale=0.9 → speed≈1.11 (faster)
             speed = 1.0 / length_scale if length_scale > 0 else 1.0
-            speed = max(0.25, min(4.0, speed))  # Clamp to valid range
-            
-            # Prepare request
+            speed = max(0.25, min(4.0, speed))
+
             request_data = {
                 "input": text,
                 "voice": voice,
                 "model": "qwen3-tts",
-                "response_format": response_format,
+                "response_format": response_format,  # "pcm" = raw 16-bit LE, 22050 Hz, mono
                 "speed": speed,
-                "stream": False,  # Use streaming for audio chunks
-                "language": language
+                "stream": True,          # ← MUST be True for streaming
+                "language": language,
             }
-            
-            # Make request to Qwen3-TTS server
-            response = await self.client.post(
+
+            # Use stream=True on the HTTP client so we get chunks as they arrive
+            async with self.client.stream(
+                "POST",
                 f"{self.server_url}/v1/audio/speech",
                 json=request_data,
-                timeout=60.0
-            )
-            
-            if response.status_code != 200:
-                error_msg = f"Qwen3-TTS error {response.status_code}: {response.text}"
-                yield ("error", {"message": error_msg})
-                return
-            
-            # Stream audio data in chunks
-            audio_data = response.content
-            
-            # Send audio in chunks (similar to Piper behavior)
-            chunk_size = 4096
-            for i in range(0, len(audio_data), chunk_size):
-                chunk = audio_data[i:i + chunk_size]
-                yield ("audio", chunk)
-                await asyncio.sleep(0.01)  # Small delay for streaming effect
-            
-            # Note: No viseme data available from Qwen3-TTS
-            # Client should use hybrid mode with Piper for visemes
-            
-            # Send completion
+                timeout=httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=5.0),
+            ) as response:
+                if response.status_code != 200:
+                    body = await response.aread()
+                    yield ("error", {"message": f"Qwen3-TTS error {response.status_code}: {body.decode(errors='replace')}"})
+                    return
+
+                # Stream raw audio bytes directly — no artificial sleep
+                async for chunk in response.aiter_bytes(chunk_size=4096):
+                    if chunk:
+                        yield ("audio", chunk)
+
             yield ("complete", {})
-            
+
         except httpx.TimeoutException:
             yield ("error", {"message": "Qwen3-TTS server timeout"})
         except httpx.ConnectError:
